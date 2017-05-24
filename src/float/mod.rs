@@ -59,6 +59,15 @@ pub trait Float: Sized + Copy {
 
     /// Returns (normalized exponent, normalized significand)
     fn normalize(significand: Self::Int) -> (i32, Self::Int);
+
+    /// Returns `a*b` with `(high_part, low_part)`
+    fn wide_multiply(a: Self::Int, b: Self::Int) -> (Self::Int, Self::Int);
+
+    /// Returns `(hi,lo) << count`
+    fn wide_left_shift(a: Self::Int, b: Self::Int, count: i32) -> (Self::Int, Self::Int);
+
+    /// Returns `(hi,lo) >> count` (with sticky)
+    fn wide_right_shift_with_sticky(a: Self::Int, b: Self::Int, count: u32) -> (Self::Int, Self::Int);
 }
 
 // FIXME: Some of this can be removed if RFC Issue #1424 is resolved
@@ -107,6 +116,42 @@ impl Float for f32 {
             .wrapping_sub((1u32 << Self::significand_bits()).leading_zeros());
         (1i32.wrapping_sub(shift as i32), significand << shift as Self::Int)
     }
+
+    fn wide_multiply(a: Self::Int, b: Self::Int) -> (Self::Int, Self::Int) {
+        let product = (a as u64) * (b as u64);
+        let hi : u32 = (product >> 32) as u32;
+        let lo : u32 = (product & 0xFFFFFFFF) as u32;
+
+        (hi, lo)
+    }
+
+    fn wide_left_shift(a: Self::Int, b: Self::Int, count: i32) -> (Self::Int, Self::Int) {
+        let hi = a << count;
+        let lohi = b >> (32 - count);
+        let lolo = b << count;
+
+        (hi | lohi, lolo)
+    }
+
+    fn wide_right_shift_with_sticky(a: Self::Int, b: Self::Int, count: u32) -> (Self::Int, Self::Int) {
+        if count < 32 {
+            let sticky = b << (32 - count);
+            let hi = a >> count;
+            let lohi = a << (32 - count);
+            let lolo = b >> count;
+
+            (hi, lohi|lolo|sticky)
+        }
+        else if count < 64 {
+            let sticky = a << (64 - count) | b;
+            let lohi = a >> (count - 32);
+
+            (0, lohi | sticky)
+        }
+        else {
+            (0, a | b)
+        }
+    }
 }
 impl Float for f64 {
     type Int = u64;
@@ -152,5 +197,51 @@ impl Float for f64 {
         let shift = significand.leading_zeros()
             .wrapping_sub((1u64 << Self::significand_bits()).leading_zeros());
         (1i32.wrapping_sub(shift as i32), significand << shift as Self::Int)
+    }
+
+    fn wide_multiply(a: Self::Int, b: Self::Int) -> (Self::Int, Self::Int) {
+        let (ahi, alo) = ((a >> 32), (a & 0xFFFFFFFF));
+        let (bhi, blo) = ((b >> 32), (b & 0xFFFFFFFF));
+
+        let plolo = alo * blo;
+        let plohi = alo * bhi;
+        let philo = ahi * blo;
+        let phihi = ahi * bhi;
+
+        let r0 = plolo & 0xFFFFFFFF;
+        let r1 = (plolo >> 32) + (plohi & 0xFFFFFFFF) + (philo & 0xFFFFFFFF);
+
+        let lo = r0 + (r1 << 32);
+        let hi = phihi + (plohi >> 32) + (philo >> 32) + (r1 >> 32);
+
+        (hi, lo)
+    }
+
+    fn wide_left_shift(a: Self::Int, b: Self::Int, count: i32) -> (Self::Int, Self::Int) {
+        let hi = a << count;
+        let lohi = b >> (64 - count);
+        let lolo = b << count;
+
+        (hi | lohi, lolo)
+    }
+
+    fn wide_right_shift_with_sticky(a: Self::Int, b: Self::Int, count: u32) -> (Self::Int, Self::Int) {
+        if count < 64 {
+            let sticky = b << (64 - count);
+            let hi = a >> count;
+            let lohi = a << (64 - count);
+            let lolo = b >> count;
+
+            (hi, lohi|lolo|sticky)
+        }
+        else if count < 128 {
+            let sticky = a << (128 - count) | b;
+            let lohi = a >> (count - 64);
+
+            (0, lohi | sticky)
+        }
+        else {
+            (0, a | b)
+        }
     }
 }
