@@ -18,6 +18,7 @@ macro_rules! int_to_float {
     };
     ($intrinsic:ident: $ity:ty, $fty:ty, $abi:tt) => {
 
+    #[no_mangle]
     pub extern $abi fn $intrinsic(i: $ity) -> $fty {
         if i == 0 {
             return 0.0
@@ -102,6 +103,7 @@ int_to_float_unadj_on_win!(__floattidf: i128, f64);
 int_to_float!(__floatunsisf: u32, f32);
 int_to_float!(__floatunsidf: u32, f64);
 int_to_float!(__floatundidf: u64, f64);
+int_to_float!(__floatundisf: u64, f32);
 int_to_float_unadj_on_win!(__floatuntisf: u128, f32);
 int_to_float_unadj_on_win!(__floatuntidf: u128, f64);
 

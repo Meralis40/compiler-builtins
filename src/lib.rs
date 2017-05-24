@@ -1,4 +1,4 @@
-#![cfg_attr(not(stage0), deny(warnings))]
+// #![cfg_attr(not(stage0), deny(warnings))]
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(feature = "compiler-builtins", compiler_builtins)]
 #![crate_name = "compiler_builtins"]
@@ -17,6 +17,7 @@
 #![feature(repr_simd)]
 #![feature(abi_unadjusted)]
 #![allow(unused_features)]
+#![allow(unused_macros)]
 #![no_builtins]
 #![unstable(feature = "compiler_builtins_lib",
             reason = "Compiler builtins. Will never become stable.",
