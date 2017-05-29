@@ -1,4 +1,3 @@
-use core::mem;
 use core::num::Wrapping;
 
 use float::Float;
@@ -27,10 +26,10 @@ macro_rules! mul {
             let qnan_rep =         exponent_mask | quiet_bit;
             let exponent_bias =    max_exponent >> 1;
 
-            let mut a_rep = Wrapping(a.repr());
-            let mut b_rep = Wrapping(b.repr());
-            let mut a_exponent = Wrapping((a_rep >> significand_bits.0 as usize & max_exponent).0 as <$ty as Float>::Int);
-            let mut b_exponent = Wrapping((b_rep >> significand_bits.0 as usize & max_exponent).0 as <$ty as Float>::Int);
+            let a_rep = Wrapping(a.repr());
+            let b_rep = Wrapping(b.repr());
+            let a_exponent = Wrapping((a_rep >> significand_bits.0 as usize & max_exponent).0 as <$ty as Float>::Int);
+            let b_exponent = Wrapping((b_rep >> significand_bits.0 as usize & max_exponent).0 as <$ty as Float>::Int);
             let mut a_significand = a_rep & significand_mask;
             let mut b_significand = b_rep & significand_mask;
             let a_abs = a_rep & abs_mask;
