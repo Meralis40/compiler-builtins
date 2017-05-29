@@ -69,6 +69,9 @@ pub trait Float: Sized + Copy {
 
     /// Returns `(hi,lo) >> count` (with sticky)
     fn wide_right_shift_with_sticky(a: Self::Int, b: Self::Int, count: u32) -> (Self::Int, Self::Int);
+
+    /// Compute reciprocal (not-corrected)
+    fn compute_reciprocal(b: Self::Int) -> Self::Int;
 }
 
 // FIXME: Some of this can be removed if RFC Issue #1424 is resolved
@@ -152,6 +155,27 @@ impl Float for f32 {
         else {
             (0, a | b)
         }
+    }
+
+    fn compute_reciprocal(b: Self::Int) -> Self::Int {
+        let q31b = b << 8;
+        let reciprocal = 0x7504F333u32 - q31b;
+        let correction = Self::wide_multiply(reciprocal, q31b).0.wrapping_neg();
+        let reciprocal = {
+            let (hi, lo) = Self::wide_multiply(reciprocal, correction);
+            (lo >> 31) | (hi << 1)
+        };
+        let correction = Self::wide_multiply(reciprocal, q31b).0.wrapping_neg();
+        let reciprocal = {
+            let (hi, lo) = Self::wide_multiply(reciprocal, correction);
+            (lo >> 31) | (hi << 1)
+        };
+        let correction = Self::wide_multiply(reciprocal, q31b).0.wrapping_neg();
+        let reciprocal = {
+            let (hi, lo) = Self::wide_multiply(reciprocal, correction);
+            (lo >> 31) | (hi << 1)
+        };
+        reciprocal
     }
 }
 impl Float for f64 {
@@ -244,5 +268,45 @@ impl Float for f64 {
         else {
             (0, a | b)
         }
+    }
+
+    fn compute_reciprocal(b: Self::Int) -> Self::Int {
+        let q31b    : u32 = (b >> 21) as u32;
+        let recip32       = 0x7504F333u32 - q31b;
+        
+        let correction32 = <f32 as Float>::wide_multiply(recip32, q31b).0.wrapping_neg();
+        let recip32 = {
+            let (hi, lo) = <f32 as Float>::wide_multiply(recip32, correction32);
+            (lo >> 31) | (hi << 1)
+        };
+        let correction32 = <f32 as Float>::wide_multiply(recip32, q31b).0.wrapping_neg();
+        let recip32 = {
+            let (hi, lo) = <f32 as Float>::wide_multiply(recip32, correction32);
+            (lo >> 31) | (hi << 1)
+        };
+        let correction32 = <f32 as Float>::wide_multiply(recip32, q31b).0.wrapping_neg();
+        let recip32 = {
+            let (hi, lo) = <f32 as Float>::wide_multiply(recip32, correction32);
+            ((lo >> 31) | (hi << 1) - 1)
+        };
+
+        let q64blo = b << 11;
+        let correction = {
+            let r32_64 = recip32 as u64;
+            let r1 = r32_64 * q31b as u64;
+            let r2 = (r32_64 * q64blo) >> 32;
+            
+            (r1 + r2).wrapping_neg()
+        };
+        let (chi, clo) = ((correction >> 32) as u32, (correction & 0xFFFFFFFFu64) as u32);
+
+        let (r1hi, r1lo) = <f32 as Float>::wide_multiply(recip32, chi);
+        let (r2hi, _) = <f32 as Float>::wide_multiply(recip32, clo);
+
+        let r1hi_64 = r1hi as u64;
+        let r1lo_64 = r1lo as u64;
+        let r2hi_64 = r2hi as u64;
+
+        ((r1hi_64 << 32 | r1lo_64) + r2hi_64)
     }
 }
